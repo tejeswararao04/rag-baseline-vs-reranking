@@ -252,5 +252,10 @@ Step 22 - Report Section 4 Done, Report Complete
 Date: 13 Oct
 Wrote scaling answer: Bi precompute fast, Cross joint attention slow cannot precompute, 10 pairs 38 ms so full 362 would be 1.4 sec, lakhs impossible. So retrieve Top 10 then re-rank. All 4 report sections done.
 
+Step 23 - GitHub Push Done
+Date: 13 Oct
+Repo: https://github.com/tejeswararao04/rag-baseline-vs-reranking.git
+Branch: main. Commit f6f9275 RAG baseline vs reranking on NITI AI Strategy. 6 files pushed: README, ipynb, assignment PDF, data PDF, requirements, viva notes. Status clean.
+
 Next step pending:
-- GitHub upload and final notebook save with outputs.
+- Final check of notebook outputs and report PDF for submission.
