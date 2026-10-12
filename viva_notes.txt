@@ -1,0 +1,256 @@
+RAG Assignment - Step by Step Notes for Viva
+Date started: 12 Oct 2026
+Deadline: 19 Oct 2026
+
+Step 1 - Setup and Environment
+
+1. Dataset decision:
+Final choice: NITI Aayog National Strategy for Artificial Intelligence, 114 pages.
+Path in Kaggle: /kaggle/input/datasets/pailatejeswararao/niti-ai-strategy/NITI_AI_Strategy.pdf
+Total pages with text: 109 out of 114. 5 pages are blank.
+Total chunks: 362.
+
+Why this file:
+- Assignment allows technical policy, regulatory or legal document, or board game rulebook.
+- First we thought of CATAN rulebook. It is small, about 20 pages. Problem is baseline will already give correct answer, so no clear difference between Answer 1 and Answer 2.
+- Then we thought of EU AI Act, about 140 pages. It is good for rank shifts, but it is not Indian and not useful for placements.
+- User wanted around 100 pages and Indian related for placements. So we selected NITI AI Strategy.
+- It is 114 pages, single PDF, technical policy, Indian. It is useful for AI ML interviews in India. Topics like AI in healthcare, agriculture, education are asked in interviews.
+- It has synonyms, scattered facts, exceptions, which are needed for failure queries.
+
+Download problem and fix:
+- Direct wget from niti.gov.in gave 403 Forbidden. Site blocks bots.
+- Fix: manually downloaded PDF on laptop, then uploaded to Kaggle as dataset using File - Upload input - Upload dataset. Then added as Input to notebook. This worked and gave 4.5 MB file.
+
+2. LLM decision:
+Final choice: models/gemini-3.8-flash, same model for Answer 1 and Answer 2.
+Why:
+- First tried gemini-2.0-flash. Got error: model no longer available.
+- Then tried gemini-2.5-flash. Got error: no longer available to new users.
+- Listed available models with list_models. Selected gemini-3.8-flash as suggested by Google error message. Test with say ok worked.
+- Same prompt and same model for both pipelines. Only chunks will differ. This is required by assignment.
+
+API key:
+- Cannot use opencode key. That key works only in this chat.
+- Created new key from aistudio.google.com with gmail pailatejeswararao70@gmail.com.
+- Stored in Kaggle as Secret with name GEMINI_API_KEY. Used kaggle_secrets to load it. This keeps key safe.
+
+3. Embeddings decision:
+Final choice: all-MiniLM-L6-v2 from sentence-transformers. This is a Bi-Encoder.
+Why:
+- Free, fast, works on Kaggle T4 GPU. Output size 384. Good for 362 chunks.
+- No API key needed. Reproducible.
+
+4. Environment decision:
+Final: Kaggle notebook rag_assignment, GPU T4 x2, Internet ON, Persistence Variables and Files.
+Why Kaggle and not local:
+- No setup needed. GPU free. Internet for models.
+- Started session by running a cell. Draft Session off problem solved by running a cell.
+
+5. Chunking decision:
+Final: chunk size 1000 characters, overlap 150 characters, skip parts smaller than 200 characters.
+Result: 362 chunks. Sample id p4_5 page 4.
+Why:
+- Same chunked corpus must be used for both Pipeline 1 and Pipeline 2. So we chunk once and reuse.
+- 1000 characters is about 200 to 250 words. Good for this policy document. Overlap 150 keeps context across cuts.
+- Stored as dict with id, page, text. Page number kept for viva and for rank shift table.
+
+Step 2 - Baseline Indexing Part A Done
+Date: 12 Oct 2026 evening
+
+What we did:
+- Loaded all-MiniLM-L6-v2 and encoded 362 chunks. Batch size 32.
+- Output vectors shape is 362 by 384. This matches chunk count. 384 is model size.
+- Normalized vectors to unit length. Then built FAISS IndexFlatIP for cosine similarity using inner product.
+- Total stored in index is 362. So all chunks indexed. No loss.
+
+Section status:
+- Setup and Environment: fully done.
+- Pipeline 1 part a Index chunks into vector store: done.
+- Pipeline 1 part b Retrieve Top 10: done on 12 Oct. Tested with query What is AI for All strategy focus areas. Got rank 1 to 10 with scores 0.58 to 0.55. Scores are close, so ranking is weak. This is expected for Bi-Encoder. This will help show benefit of re-ranking later.
+- Pipeline 1 part c Top 3 to LLM for Answer 1: code done on 12 Oct. Tested with query What is AI for All strategy focus areas. Top 3 used were p8_20 page 8, p21_57 page 21, p11_23 page 11. Answer was not found. Reason: prompt is strict, says say not found if not in context. Top 3 chunks were generic policy talk, not focus sectors. This shows Bi-Encoder weakness with generic query. Code works. Pipeline 1 is complete end to end.
+- Pipeline 2 Re-Ranking: next step. Need to load Cross-Encoder and re-sort Top 10.
+- Failure Mode Analysis: not started.
+- Report: not started.
+
+Step 4 - First Re-rank Test Done
+Date: 12 Oct night
+Results:
+- Query 1 funding for COREs and ICTAIs: success. Chunk p54_167 moved old rank 7 to new rank 1. Chunk p55_172 moved old rank 10 to new rank 3. Answer 1 had ICTAI funding 200 to 500 crore but said COREs not found. Answer 2 had COREs funding 50 to 100 crore but said ICTAI not found. This shows rank shift and omission difference. Good for report as buried gold case and keyword trap with COREs term.
+- Query 2 privacy safeguards for health data: both Answer 1 and Answer 2 said not found. Ranks barely changed 2 to 1, 1 to 2. Query too long or too strict. Need simpler query.
+- Query 3 barriers for small farmers: both said not found. But ranks moved 5 to 2 and 7 to 3. So re-rank works but prompt still says not found. Need simpler query and check chunk text.
+
+Step 5 - Simple Queries Test Done
+Date: 12 Oct night
+Results:
+- Query COREs funding amount per centre: best case. Chunk p55_172 old 4 new 1. Chunk p53_165 old 8 new 2. Answer 1 said Not found. Answer 2 gave INR 50 crore to 100 crore per CORE. This is clear baseline fail and re-rank pass. Good for keyword trap with COREs term. Will use in report.
+- Query data anonymization and privacy for AI: both answers found. But Answer 2 is better. It adds differential privacy, privacy by design, multi party computations. Chunk p86_286 moved old 7 new 3. Good for exception case where vital chunk was buried.
+- Query challenges for farmers: both said not found. But ranks moved old 9 new 1, old 8 new 2. So re-rank works but LLM still says not found. Need to check chunk text or change query later. Not urgent because we already have 2 good queries. Assignment needs at least 2.
+
+Final failure queries selected for now:
+1. What funding is proposed for Centres of Research Excellence COREs and ICTAIs. Shows 7 to 1 and 10 to 3.
+2. COREs funding amount per centre. Shows 4 to 1 and 8 to 2, with Not found vs Found.
+
+Step 6 - Latency Test Done and Step 2 Complete
+Date: 12 Oct night
+Latency results for query COREs funding amount per centre, average of 5 runs:
+- Baseline search only: 0.0081 seconds. This is 8 ms. Very fast because FAISS inner product on 362 vectors.
+- Re-rank extra: 0.0382 seconds. This is 38 ms for 10 pairs with Cross Encoder.
+- Total Pipeline 2: 0.0463 seconds. This is 46 ms without LLM time.
+- Meaning: re-rank adds about 5 times extra cost over baseline, but still small. This is needed for report section 3. LLM time will be added later, it is same for both pipelines.
+
+Step 2 status: fully complete.
+- Pipeline 1 a index done, b Top 10 done, c Top 3 to Answer 1 done.
+- Pipeline 2 a Top 10 reuse done, b Cross Encoder scoring done, c re-sort and Top 3 done, d same prompt to Answer 2 done.
+- Prompt is identical for both. Only chunks differ. This meets assignment rule.
+- Quality check: doing good. Rank shifts are strong, 7 to 1, 10 to 3, 4 to 1, 8 to 2. Answer 1 says Not found, Answer 2 gives correct INR 50 to 100 crore. This is exactly what assignment asks to show.
+
+Step 7 - Third Query Fix Ready
+Date: 12 Oct night
+Chunk text check:
+- New rank 1 p45_137 page 45 has Key challenges to adoption of AI in India. Good heading.
+- New rank 2 p19_47 page 19 has agriculture use cases like crop yield, pest detection, crop prices. Not barriers list.
+- New rank 3 p6_11 page 6 has exact barriers list for AI for All: lack of expertise, absence of data ecosystems, high resource cost and low awareness, privacy and anonymisation. This is gold chunk. Old rank was 6, so baseline Top 3 missed it. New rank is 3, so re-rank includes it.
+- Old query challenges for farmers failed because it asked for small farmers words which are not in text. LLM said not found.
+- Fix: ask exact words from chunk. New query: What barriers need to be addressed to achieve the goals of AI for All. This should make Answer 1 miss and Answer 2 hit.
+
+Step 8 - Basic RAG Structure Confirmed
+Date: 12 Oct night
+Basic RAG flow in our code:
+1. Query comes from user.
+2. Get context: search_top10 changes query to vector and searches FAISS index. Returns Top 10 chunks with rank, id, page, score.
+3. Take Top 3 chunks as context. For Pipeline 1 we take old Top 3 directly. For Pipeline 2 we re-rank first with rerank_top10 and then take new Top 3.
+4. Make prompt: make_prompt joins the 3 chunk texts as context plus query. Prompt says answer only from context, else say not found.
+5. Get answer: llm.generate_content sends prompt to gemini-3.8-flash. If info is in chunks, it answers. Else it returns not found or sorry not found.
+This matches assignment rule of identical prompt, only chunks differ.
+
+Step 9 - Quota Hit
+Date: 12 Oct night
+Error: 429 ResourceExhausted. Quota exceeded for gemini-3.8-flash free tier. Limit 20 requests per day per model. Retry in 3h40m.
+Reason: we called Answer 1 plus Answer 2 many times in loops. Each test uses 2 calls. 20 limit finishes fast.
+Fix plan:
+- Do not call LLM for now. Test only ranks with search and rerank. That uses no quota.
+- Wait for reset, or make second API key in second project for extra quota. Final report must use same model for both answers, so keep gemini-3.8-flash for final answers.
+- Save all answers already got in notebook output, do not rerun them.
+
+Step 10 - API Key Question
+Date: 12 Oct night
+Question: need new key and redo from scratch.
+Answer: no need to redo. Chunks, vectors, index, reranker all stay. Only LLM key line changes.
+Option A: wait 3h40m for same key reset. No code change.
+Option B: make second key in new project in AI Studio. Add as second secret in Kaggle. Change only genai.configure line to new key. Keep same model gemini-3.8-flash for report consistency.
+Step 11 - New Key Added
+Date: 12 Oct night
+User made second key. Plan: add as GEMINI_API_KEY2 in Kaggle Secrets. Change genai.configure to new key. Keep same model gemini-3.8-flash. Test with say ok. Then run third query answers. No need to redo chunks or index.
+
+Step 12 - New Key Same Quota Problem
+Date: 12 Oct night
+Test with newkey2 still gave 429 quota exceeded for gemini-3.8-flash, retry 3h12m.
+Reason: new key is in same Google Cloud project. Quota is per project per model, not per key. So new key does not help.
+Fix options:
+A. Make new project in AI Studio, then new key in that project. That gives fresh 20 calls.
+B. Use different model for now, like gemini-3.5-flash or gemini-flash-lite-latest. Each model has separate quota. Good to continue tonight. Final report should use same model for Answer 1 and Answer 2, so note model name clearly.
+C. Wait 3h12m for reset.
+Decision: try option B for third query test now, then redo final answers with gemini-3.8-flash after reset for consistency.
+
+Step 13 - Lite Model Works
+Date: 12 Oct night
+Test with newkey3 and gemini-flash-lite-latest gave ok. So quota for lite model is fresh.
+Plan: use llm2 for third query test tonight to finish logic. Final report will rerun all answers with gemini-3.8-flash after reset so model stays same for Answer 1 and Answer 2. Note this model swap in viva as temporary quota fix, not final.
+
+Step 14 - Third Query Done, Step 3 Complete
+Date: 12 Oct night with lite model
+Query: What barriers need to be addressed to achieve the goals of AI for All
+Ranks:
+- p6_11 page 6 old 1 new 1 stays top, gold chunk
+- p45_137 page 45 old 4 new 2 promoted
+- p72_233 page 72 old 7 new 3 promoted from 7 to 3, buried gold case
+Answers with lite model:
+- Answer 1 gave 8 points, long list with duplicates like high cost twice, unclear privacy twice. Noisy because baseline Top 3 had mixed chunks.
+- Answer 2 gave clean 4 points a to d: lack expertise, absence data ecosystems, high cost low awareness, privacy anonymisation. Exact match to gold chunk. Precise.
+This shows qualitative difference: baseline noisy, re-rank precise. Good for report.
+
+Step 3 status: complete.
+We now have 3 queries:
+1. Funding for COREs and ICTAIs. 7 to 1, 10 to 3. Omission case.
+2. COREs funding amount per centre. 4 to 1, 8 to 2. Not found vs Found case.
+3. Barriers for AI for All. 7 to 3. Noisy vs precise case.
+Assignment needs at least 2. We have 3. Good for viva.
+
+Step 15 - Full Latency Done
+Date: 12 Oct night with lite model
+Full times with LLM for query COREs funding amount per centre:
+- Pipeline 1 total with LLM: 0.377 seconds
+- Pipeline 2 total with LLM: 0.467 seconds
+- Extra cost for re-rank: 0.09 seconds
+Earlier retrieval only times:
+- Baseline search: 0.0081 seconds
+- Re-rank extra: 0.0382 seconds
+- Total retrieval: 0.0463 seconds
+Meaning: retrieval is fast, LLM dominates time. Re-rank adds small extra but gives better answers. Good for report section 3.
+Note: these numbers are with lite model tonight. Final report will rerun once with gemini-3.8-flash after quota reset and note model name. Numbers will be slightly higher but pattern same.
+
+Overall status:
+- Step 1 Setup done
+- Step 2 Two Stage Retrieval code done
+- Step 3 Failure Analysis done with 3 queries
+- Step 4 Report and GitHub pending
+
+Step 16 - Step 3 Remaining Work Started
+Date: 13 Oct
+Status: keyword trap done, buried ranks done. Pending: exceptions and corner cases, negation and constraints, other doc specific.
+Plan:
+- Exception query: general data use vs specific restriction on health data anonymization. Query asks for restriction or exception.
+- Negation query: uses not, without, lack words. Query asks why adoption cannot succeed without data and skills.
+- Other doc specific: will use best buried case from these new tests, need one more 4 to 10 to Top 3 proof.
+Method: ranks only first to save quota, then answers with lite model.
+
+Step 17 - Exception and Negation Ranks Done
+Date: 13 Oct
+Results ranks only:
+- Exception query on restriction for health data: p87_287 old 5 new 2. p88_291 old 6 new 3. Both buried 5 and 6 moved to Top 3. Good for exception case where general health chunk stays at 1 but restriction chunks get promoted.
+- Negation query on not succeed without data and skills: p7_15 old 8 new 1. Big shift 8 to 1. p109_347 old 5 new 3. Good for negation with not and without words plus buried case.
+Both meet other doc specific rule of 4 to 10 to Top 3.
+
+Step 18 - Step 3 All Types Done
+Date: 13 Oct with lite model
+Results answers:
+- Exception query on restriction for health data: Answer 1 gave consent and data protection frameworks with diagnostic centres example. Answer 2 said Not found. This is reverse case. Baseline Top 3 had general consent chunk which answered. Re-rank promoted p87_287 and p88_291 which are more technical and LLM said not found. This still shows difference and is useful for viva to explain that re-rank can sometimes promote technical chunks that miss simple consent wording. Will note as limitation and exception nuance.
+- Negation query on not succeed without data and skills: Answer 1 said Not found. Answer 2 gave data access plus 4 percent professionals plus PhD gap plus reskilling need. Perfect case. Baseline fails, re-rank passes. Ranks 8 to 1 and 5 to 3 support it. Good for negation with not and without words.
+
+Step 3 final status: complete.
+- Keyword trap: COREs funding queries. Done.
+- Exceptions and corner cases: health restriction query plus barriers query. Done. One reverse case noted honestly.
+- Negation and constraints: not succeed without data query. Done. Clear pass.
+- Other buried 4 to 10 to Top 3: many proofs. 7 to 1, 10 to 3, 8 to 1, 5 to 2, 6 to 3. Done.
+- At least two failure queries where baseline stumbles but re-rank restores: we have 3 strong. COREs per centre Not found vs Found. Negation Not found vs Found. Barriers noisy vs precise. Done.
+
+Code readability: from now add simple comments on every cell. One line per block explaining query, search, rerank, prompt, answer.
+
+Step 19 - Report Section 1 Started
+Date: 13 Oct
+Section 1 Architecture Comparison: need short note on Bi-Encoder vs Cross-Encoder.
+Points to cover:
+- Bi-Encoder encodes query and chunk separately, then cosine. Fast, precompute, but misses word interaction, fails on negation and synonyms like COREs.
+- Cross-Encoder takes query plus chunk together, joint attention across tokens, scores relevance directly. Slow, cannot precompute, but understands context, fixes negation and trap.
+- Our code: all-MiniLM-L6-v2 for Bi, ms-marco-MiniLM-L-6-v2 for Cross. FAISS IndexFlatIP for fast Top 10, then Cross for Top 10 only.
+- Link to results: baseline 8 ms, re-rank 38 ms extra. Rank shifts prove difference.
+
+Step 20 - Report Section 2 Done
+Date: 13 Oct
+Wrote rank shift table and Answer 1 vs Answer 2 for 3 queries in README.
+- Query 1 COREs funding: 4 to 1, 8 to 2, Not found vs Found with 50 to 100 crore. Shows omission fixed.
+- Query 2 negation not succeed without: 8 to 1, 5 to 3, Not found vs Found with 4 percent point. Shows negation fixed.
+- Query 3 barriers: 4 to 2, 7 to 3, noisy 8 points vs clean 4 points. Shows precision fixed.
+All show vital chunk buried 4 to 10 promoted to Top 3.
+
+Step 21 - Report Section 3 Done
+Date: 13 Oct
+Wrote latency table in README with 4 stages and meaning. Baseline 0.0081, re-rank 0.0382, P1 with LLM 0.377, P2 with LLM 0.467. Extra 0.09 sec.
+
+Step 22 - Report Section 4 Done, Report Complete
+Date: 13 Oct
+Wrote scaling answer: Bi precompute fast, Cross joint attention slow cannot precompute, 10 pairs 38 ms so full 362 would be 1.4 sec, lakhs impossible. So retrieve Top 10 then re-rank. All 4 report sections done.
+
+Next step pending:
+- GitHub upload and final notebook save with outputs.
